@@ -1,0 +1,297 @@
+from pathlib import Path
+
+html = r'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#fbf7ff">
+<title>Wordle — A Little Word Game</title>
+<style>
+:root{
+  --bg:#fbf8ff;--panel:#ffffff;--ink:#292638;--muted:#827d91;--line:#e9e3f0;
+  --accent:#b69ae8;--accent-dark:#8e70c9;--tile:#fff;--key:#eeeaf3;
+  --correct:#8bc6a5;--present:#f2c878;--absent:#aaa6b2;
+  --shadow:0 14px 40px rgba(65,48,91,.09);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-rounded,"SF Pro Rounded","Nunito",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;transition:background .25s,color .25s}
+body.dark{--bg:#201e2a;--panel:#2b2838;--ink:#f5f1fb;--muted:#b6afc5;--line:#454052;--tile:#302d3d;--key:#464253;--shadow:0 14px 40px rgba(0,0,0,.22)}
+body[data-device="phone"] .shell{max-width:520px}
+body[data-device="tablet"] .shell{max-width:850px}
+body[data-device="computer"] .shell{max-width:1100px}
+button{font:inherit;cursor:pointer;border:0}
+.shell{width:min(100% - 32px,720px);margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:66px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);position:relative}
+.brand{font-weight:950;letter-spacing:.18em;font-size:19px;color:var(--ink);display:flex;align-items:center;gap:9px}
+.brand-mark{display:grid;grid-template-columns:repeat(2,9px);gap:2px;transform:rotate(-7deg)}
+.brand-mark i{width:9px;height:9px;border-radius:3px;background:var(--accent)}
+.icon-btn{width:40px;height:40px;border-radius:14px;background:var(--panel);color:var(--ink);border:1px solid var(--line);display:grid;place-items:center;transition:.18s}
+.icon-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.icon-btn svg{width:19px;height:19px}
+.header-actions{display:flex;gap:8px}
+main{flex:1;display:flex;flex-direction:column}
+.screen{display:none;flex:1;animation:fadeUp .35s ease both}
+.screen.active{display:flex}
+@keyframes fadeUp{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+.home{align-items:center;justify-content:center;text-align:center;padding:48px 12px 64px;gap:20px}
+.hero-tiles{display:flex;gap:8px;justify-content:center;margin-bottom:3px}
+.hero-tile{width:54px;height:58px;border:2px solid var(--line);background:var(--panel);border-radius:13px;display:grid;place-items:center;font-size:27px;font-weight:900;box-shadow:0 5px 0 rgba(80,62,106,.05);animation:bob 2.6s ease-in-out infinite}
+.hero-tile:nth-child(2){animation-delay:.12s}.hero-tile:nth-child(3){animation-delay:.24s}.hero-tile:nth-child(4){animation-delay:.36s}.hero-tile:nth-child(5){animation-delay:.48s}
+.hero-tile:nth-child(2),.hero-tile:nth-child(4){background:var(--correct);border-color:var(--correct);color:white}
+.hero-tile:nth-child(3){background:var(--present);border-color:var(--present);color:white}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-7px) rotate(2deg)}}
+h1{font-size:clamp(42px,8vw,66px);letter-spacing:.12em;margin:0;font-weight:950}
+.subtitle{color:var(--muted);font-size:16px;line-height:1.6;margin:0;max-width:390px}
+.home-actions{display:flex;flex-direction:column;gap:11px;width:min(100%,300px);margin-top:10px}
+.primary,.secondary{border-radius:16px;padding:15px 20px;font-weight:800;transition:transform .18s,box-shadow .18s}
+.primary{background:var(--accent);color:white;box-shadow:0 7px 0 var(--accent-dark)}
+.primary:hover{transform:translateY(-2px);box-shadow:0 9px 0 var(--accent-dark)}
+.primary:active{transform:translateY(4px);box-shadow:0 3px 0 var(--accent-dark)}
+.secondary{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.secondary:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.tiny-note{font-size:12px;color:var(--muted);margin-top:8px}
+.game{align-items:center;padding:22px 0 24px;gap:13px}
+.game-heading{text-align:center}
+.game-heading h2{font-size:19px;margin:0 0 4px;letter-spacing:.12em}
+.game-heading p{font-size:12px;color:var(--muted);margin:0}
+.board{display:grid;grid-template-rows:repeat(6,1fr);gap:6px;width:min(100%,330px);aspect-ratio:5/6;max-height:390px}
+.row-tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tile{border:2px solid var(--line);background:var(--tile);border-radius:9px;display:grid;place-items:center;font-size:clamp(21px,5vw,28px);font-weight:900;text-transform:uppercase;transition:background .2s,border-color .2s;perspective:500px}
+.tile.filled{border-color:#b9afc9;animation:pop .1s}
+@keyframes pop{50%{transform:scale(1.07)}}
+.tile.correct,.key.correct{background:var(--correct);border-color:var(--correct);color:white}
+.tile.present,.key.present{background:var(--present);border-color:var(--present);color:white}
+.tile.absent,.key.absent{background:var(--absent);border-color:var(--absent);color:white}
+.tile.flip{animation:flip .45s ease}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
+.message{height:24px;font-size:13px;color:var(--muted);font-weight:700;text-align:center}
+.keyboard{width:min(100%,500px);display:flex;flex-direction:column;gap:7px}
+.key-row{display:flex;justify-content:center;gap:5px}
+.key{height:48px;min-width:0;flex:1;max-width:43px;border-radius:9px;background:var(--key);color:var(--ink);font-size:14px;font-weight:850;display:grid;place-items:center;transition:.15s}
+.key.wide{max-width:72px;flex:1.55;font-size:11px}
+.key:active{transform:scale(.94)}
+.game-controls{display:flex;gap:8px;align-items:center}
+.small-pill{padding:9px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:12px;font-weight:750}
+.settings{padding:34px 0 55px;max-width:650px;width:100%;margin:0 auto}
+.settings-head{display:flex;align-items:center;gap:13px;margin-bottom:24px}
+.settings-head h2{font-size:27px;margin:0}
+.settings-head p{color:var(--muted);margin:3px 0 0;font-size:13px}
+.setting-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:19px;margin-bottom:13px;box-shadow:0 5px 18px rgba(65,48,91,.035)}
+.setting-card h3{margin:0 0 14px;font-size:15px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0}
+.setting-row + .setting-row{border-top:1px solid var(--line)}
+.setting-row strong{display:block;font-size:13px}
+.setting-row small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit;font-size:12px}
+.color-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0}
+.color-setting + .color-setting{border-top:1px solid var(--line)}
+.color-setting strong{font-size:13px}
+.color-setting input[type=color]{width:42px;height:34px;border:0;background:transparent;cursor:pointer}
+.preview{display:flex;gap:6px;margin-top:14px}
+.preview span{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:white;font-weight:900;font-size:15px}
+.toggle{position:relative;width:44px;height:25px;background:var(--line);border-radius:20px;cursor:pointer;transition:.2s}
+.toggle::after{content:"";position:absolute;width:19px;height:19px;background:white;border-radius:50%;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px #0002}
+.toggle.on{background:var(--accent)}
+.toggle.on::after{left:22px}
+.footer{text-align:center;color:var(--muted);font-size:11px;padding:18px 0 24px}
+.modal-backdrop{position:fixed;inset:0;background:#1d192b80;display:none;place-items:center;padding:20px;z-index:10}
+.modal-backdrop.show{display:grid}
+.modal{width:min(100%,360px);background:var(--panel);color:var(--ink);border-radius:23px;padding:26px;text-align:center;box-shadow:var(--shadow);animation:fadeUp .25s ease}
+.modal h2{margin:0 0 8px;font-size:25px}
+.modal p{color:var(--muted);font-size:14px;line-height:1.55}
+.answer{font-size:28px;letter-spacing:.2em;font-weight:950;margin:18px 0}
+.modal .primary{width:100%;margin-top:8px}
+.toast{position:fixed;top:78px;left:50%;transform:translateX(-50%) translateY(-8px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:12px;font-weight:750;opacity:0;pointer-events:none;transition:.2s;z-index:20;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(min-width:700px){
+  .home{padding-top:65px}.hero-tile{width:64px;height:68px;font-size:31px}
+  .game{padding-top:28px}.board{width:350px}.key{height:54px;max-width:48px}
+}
+@media(max-width:390px){.shell{width:min(100% - 20px,520px)}.key{height:43px;font-size:12px}.key.wide{font-size:10px}.board{max-height:350px}}
+</style>
+</head>
+<body data-device="auto">
+<div class="shell">
+  <header class="topbar">
+    <button class="icon-btn" id="homeBtn" aria-label="Home" title="Home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
+    </button>
+    <div class="brand"><span class="brand-mark"><i></i><i></i><i></i><i></i></span> WORDLE</div>
+    <div class="header-actions">
+      <button class="icon-btn" id="helpBtn" aria-label="How to play" title="How to play">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.5 1.5c-1.2 1.2-2.1 1.5-2.1 3"/><path d="M12 17.5h.01"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 1 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 1 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V2a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 1 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2 2.9Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="screen home active" id="homeScreen">
+      <div class="hero-tiles" aria-hidden="true"><div class="hero-tile">W</div><div class="hero-tile">O</div><div class="hero-tile">R</div><div class="hero-tile">D</div><div class="hero-tile">S</div></div>
+      <h1>WORDLE</h1>
+      <p class="subtitle">A little word game for your brain.<br>Find the five-letter word, one guess at a time.</p>
+      <div class="home-actions">
+        <button class="primary" id="playBtn">Start playing</button>
+        <button class="secondary" id="homeSettingsBtn">Settings</button>
+      </div>
+      <div class="tiny-note">Unlimited puzzles · A fresh word every round</div>
+    </section>
+
+    <section class="screen game" id="gameScreen">
+      <div class="game-heading"><h2>GUESS THE WORD</h2><p>Six tries. Five letters. Unlimited rounds.</p></div>
+      <div class="board" id="board" aria-label="Word grid"></div>
+      <div class="message" id="message" aria-live="polite"></div>
+      <div class="keyboard" id="keyboard" aria-label="Game keyboard"></div>
+      <div class="game-controls">
+        <button class="small-pill" id="newGameBtn">New word</button>
+        <button class="small-pill" id="gameSettingsBtn">Settings</button>
+      </div>
+    </section>
+
+    <section class="screen" id="settingsScreen">
+      <div class="settings">
+        <div class="settings-head">
+          <button class="icon-btn" id="backBtn" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div><h2>Settings</h2><p>Make the game feel like yours.</p></div>
+        </div>
+        <div class="setting-card">
+          <h3>Appearance</h3>
+          <div class="setting-row"><div><strong>Color mode</strong><small>Choose your app background</small></div><select id="modeSelect"><option value="light">Light mode</option><option value="dark">Dark mode</option></select></div>
+        </div>
+        <div class="setting-card">
+          <h3>Letter colors</h3>
+          <div class="color-setting"><div><strong>Correct letter, correct spot</strong><small>Right letter in the right place</small></div><input type="color" id="correctColor" value="#8bc6a5"></div>
+          <div class="color-setting"><div><strong>Correct letter, wrong spot</strong><small>In the word, but in another place</small></div><input type="color" id="presentColor" value="#f2c878"></div>
+          <div class="color-setting"><div><strong>Letter not in the word</strong><small>Not part of the answer</small></div><input type="color" id="absentColor" value="#aaa6b2"></div>
+          <div class="preview" id="colorPreview"><span style="background:#8bc6a5">A</span><span style="background:#f2c878">B</span><span style="background:#aaa6b2">C</span></div>
+        </div>
+        <div class="setting-card">
+          <h3>Screen layout</h3>
+          <div class="setting-row"><div><strong>Device size</strong><small>Choose a layout, or let it adjust automatically</small></div><select id="deviceSelect"><option value="auto">Automatic</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="computer">Computer</option></select></div>
+        </div>
+        <div class="setting-card">
+          <h3>Game</h3>
+          <div class="setting-row"><div><strong>Unlimited play</strong><small>Start a new puzzle whenever you finish</small></div><span style="color:var(--accent);font-weight:900;font-size:12px">ON</span></div>
+          <div class="setting-row"><div><strong>Reset statistics</strong><small>Clear your saved win and game counts</small></div><button class="small-pill" id="resetStatsBtn">Reset</button></div>
+        </div>
+        <div class="setting-card">
+          <h3>About</h3>
+          <div class="setting-row"><div><strong>Wordle</strong><small>A simple five-letter word game</small></div><small>Version 1.0</small></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="footer">Made for word lovers.</footer>
+</div>
+
+<div class="modal-backdrop" id="resultModal"><div class="modal"><h2 id="resultTitle">Nice work!</h2><p id="resultText"></p><div class="answer" id="answerText"></div><button class="primary" id="againBtn">Play another word</button><button class="secondary" id="closeResultBtn" style="width:100%;margin-top:10px">Keep looking around</button></div></div>
+<div class="modal-backdrop" id="helpModal"><div class="modal"><h2>How to play</h2><p>Guess the hidden five-letter word in six tries. After each guess, the tiles show how close you are.</p><div class="preview" style="justify-content:center"><span style="background:var(--correct)">A</span><span style="background:var(--present)">B</span><span style="background:var(--absent)">C</span></div><p><b>Green:</b> right letter, right spot.<br><b>Yellow:</b> right letter, wrong spot.<br><b>Gray:</b> letter isn't in the word.</p><p>Only real five-letter words are accepted. Invalid guesses don't use a turn.</p><button class="primary" id="closeHelpBtn">Got it</button></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* The answer bank and accepted-guess bank contain five-letter English words. */
+const ANSWERS = (`about above abuse actor acute admit adopt adult after again agent agree ahead alarm album alert alike alive allow alone along alter among angel anger angle angry apart apple apply arena argue arise armor array aside asset audio audit avoid awake award aware awful bacon badge badly baker bases basic beach began begin being below bench berry birth black blame blank blast blend bless blind block blood board boast bonus boost booth bound brain brand brave bread break brick bride brief bring broad broke brown brush build bunch burst buyer cabin cable camel candy carry catch cause chain chair chalk charm chart chase cheap check cheek chest chief child china chips choir chose civil claim class clean clear clerk click climb clock close cloth cloud coach coast color could count court cover crack craft crash cream crime crisp cross crowd crown crude curve cycle daily dance dated dealt death debut delay depth diary dirty doubt dozen draft drama dream dress drink drive eager early earth eight elite empty enemy enjoy enter entry equal error essay event every exact exist extra faith false fancy fault favor feast fence fewer fiber field fifth fifty fight final first flame flash fleet floor focus force forth forty found frame frank fresh front fruit fully funny giant given glass globe glory glove going grace grade grain grand grant grass great green greet grief gross group grown guard guess guest guide habit happy harden harsh heart heavy hello hence hobby honey honor horse hotel house human humor ideal image imply index inner input issue items joint judge juice known label labor large laser later laugh layer learn least leave legal level light limit links liver local logic loose lower lucky lunch magic major maker march match maybe mayor meant media metal might minor model money month moral motor mount mouse mouth movie music naked named nasty native naval needs nerve never newly night noise north noted novel nurse occur ocean offer often order other ought outer owned owner paint panel paper party peace phase phone photo piano piece pilot pitch place plain plane plant plate point pound power press price pride prime print prior prize proof proud prove queen quick quiet quite radio raise range rapid ratio reach react ready realm rebel refer relax reply right rival river robot rocky roman rough round route royal ruler rural sadly salad sales scale scare scene scope score scout scrap screw serve seven shade shake shall shame shape share sharp sheet shelf shell shift shine shirt shock shoot short shown sight silly since sixth sixty skill sleep slice slide slope small smart smile smoke solid solve sorry sound south space spare speak speed spend spent spice spine split sport spray staff stage stair stake stand stare start state steam steel steep stick still stock stone stood store storm story strip stuck study stuff style sugar suite sunny super sweet table taken taste teach tears teeth thank their theme there these thick thing think third those three threw throw tight tired title today topic total touch tough tower trace track trade trail train treat trend trial tribe trick tried truck truly trust truth twice uncle under union unity until upper upset urban usage usual valid value video visit vital voice waste watch water wheel where which while white whole whose woman women world worry worth would write wrong wrote young youth`.split(/\s+/);
+const EXTRA = (`abide abort actor acute adapt adept adore adorn afire agile aging agony agree aisle alarm alert alien align alike aloft alpha altar amend amiss ample amuse ankle annoy antic anvil aroma arose asset atlas attic audio avail avert awful axiom azure babel bagel balmy banjo barge basin basis baton beast begun being belch below berth bicep bison blade bleak bleed blend bless blimp bliss blond bluff blunt blush boast bonus borne brace braid brain brake brand brass bravo brawl brawn bread break breed bribe brick bride brief brine bring brink brisk broad broil broke brood brook broom broth brown brunt brush brute buddy budge buggy bugle build built bulky bully bunch bunny burst busty buyer bylaw cabin cacao cache cadre caged cairn cajun camel cameo canal canny canoe canon caper caput carat cargo carve caste catch cater cause cedar cello chafe chain chair chaos charm chart chase chasm cheap cheat check cheek cheer chess chest chick chief child chill chime china chirp choir choke chord chore chose chunk churn cider cigar cinch civic civil clack claim clamp clang clank clash clasp class clean clear cleat cleft clerk click cliff climb cling clink cloak clock clone close cloth cloud clout clove clown cluck clued clump coach coast cobra cocoa colon color comet comfy comic comma conch condo coral couch cough could count coupe court coven cover covet crack craft cramp crane crank crash crate crave crawl craze crazy cream credo creek creep creme crept cress crest cried crime crisp croak crock crone crony crook cross crouch crowd crown crude cruel crumb crush crust crypt cubic cumin curio curly curry curse curve cycle cynic daddy daily dairy daisy dance datum dealt death debit debug debut decal decay decor decoy defer deity delay delta delve demon denim dense depot depth derby deter detox devil diary digit dimly diner dingo dingy dirty disco ditch ditto ditty diver dizzy dodge dogma doing donut donor doubt dough dowel dozen draft drain drake drama drank drape drawl drawn dread dream dress dried drier drift drill drink drive droll drone drool droop drove drown drunk dryer dryly duchy dummy dumpy dunce dusty dwarf dwell dwelt dying eager eagle early earth easel eaten eater ebony eclat edict edify eerie eight eject elbow elder elect elegy elite elude email embed ember emcee emerge emery emoji empty enact endow enemy enjoy ennui ensue enter entry envoy epoch equal equip erase erect erode error erupt essay ether ethic evade event every evict evoke exact exalt excel exert exile exist expel extra exult fable facet faint fairy faith false fancy fanny farce fatal fatty fault fauna favor feast fecal fence feral ferry fetal fetch fetid fever fewer fiber field fiend fiery fifth fifty fight filet filet filly films filth final finch finer first fishy fixed fixer fizzy fjord flaky flame flank flare flash flask fleck fleet flesh flick flier fling flint flirt float flock flood floor flora flour flown fluffy fluid fluke flung flunk flush flute foamy focal focus foggy foist folio folky folly foray force forge forgot forte forth forty forum found foyer frail frame franc frank fraud freak freed freer fresh friar fried frill frisk fritz frock frond front frost froth frown froze fruit fully fungi funky funny furor furry fusee fussy fuzzy gamut gamma gassy gaudy gauge gaunt gauze gavel gawky gayer gayly gazer gecko geeky geese genie genre ghost ghoul giant giddy girly given giver glare glass glaze gleam glean glide glint gloat globe gloom glory gloss glove glyph gnash gnome godly going golly gonad goods gooey goofy goose gorge gouge gourd grace grade graft grain grand grant grape graph grasp grass grate grave gravy graze great greed green greet grief grill grime grimy grind gripe groan groin groom gross group grout grove growl grown gruel gruff grunt guard guava guess guest guide guild guilt guise gulch gully gummy guppy gusto gusty gypsy habit hairy halve handy happy hardy harsh haste hasty hatch hater haunt haven havoc hazel heady heard heart heath heave heavy hedge hefty hello hence heron hilly hinge hippo hitch hoard hobby hoist holly homer honey honor horde horny horse hotel hound house hover human humid humor humus hunch hurry husky hussy hutch hydro hyena hymen hyper icily icing ideal idiom idiot idyll igloo image imbue impel imply inbox incur index inept inert infer ingot inlet inner input inter intro ionic irate irony islet issue itchy ivory jazzy jelly jerky jetty jewel jiffy joint joist joker jolly joust judge juice juicy jumbo jumpy junta junto juror kayak kebab khaki kinky kiosk kitty knack knave knead kneed kneel knelt knife knock knoll known koala label labor laden ladle lager lance lanky lapel lapse large larva laser latch later lathe latte laugh layer leach leafy leaky leant learn lease leash least leave ledge leech leery lefty legal legit lemon lemur level lever libel liege light liken lilac limit linen liner lingo lipid lithe liver livid llama loamy loath lobby local locus lodge lofty logic login loopy loose loser louse lousy lover lower lowly loyal lucid lucky lumen lunar lunch lunge lupus lurid lusty lying lyric macaw macho macro madam madly magic magma maize major maker mambo mamma mammy manga mango mangy mania manic manor maple march marry marsh mason masse match matey mayor mealy means meant meaty medal media medic meekly melon mercy merge merit merry metal meter metro micro midge midst might milky mimic mince miner minim minor minus mirth miser missy misty mocha modal model modem mogul moist molar moldy money month moody moose moral moron morph mossy motel motif motor motto mound mount mourn mouse mouth mover movie mower muddy mulch mummy munch mural murky mushy music musky musty myrrh nadir naive nanny nasal nasty natal naval navel needy neigh nerve never newer newly niche niece night ninja ninny ninth noble nobly noise noisy nomad noose north nosey notch novel nudge nurse nutty nylon nymph oasis obese occur ocean octal oddly offal offer often olden older olive omega onset opera opine opium optic orbit order organ other otter ought ounce outdo outer outgo ovary ovate overt owned owner oxide ozone paddy pagan paint paler palsy panel panic pansy papal paper parer parka parse party pasta paste pasty patch patio patsy patty pause payee payer peace peach pearl pecan pedal penal pence penis penny perch peril perky pesky pesto petal phase phone phony photo piano picky piece piety piggy pilot pinch piney pinky pinto piper pique pitch pithy pivot pixel pixie pizza place plaid plain plane plank plant plate plaza plead pleatplied plier pluck plumb plume plump plunk plush poach polar polka polyp ponder poppy porch poser posit posse pouch pouchy pound power prank prawn press price prick pride prime print prior prism privy prize probe prone prong proof prose proud prove prowl proxy prune psalm pubic pudgy puffy pulpy pulse punch pupil puppy puree purer purge purse pushy putty pygmy quack quail quake qualm quart queen queer quell query quest queue quick quiet quill quilt quirk quite quota quote rabbi rabid racer radar radii radio rainy raise rajah rally ramen ranch range rapid rarer raspy ratio ratty raven rayon razor reach react ready realm rearm rebar rebel recap recur recut reedy refer regal rehab reign relax relay relic remit renal renew repay repel reply rerun reset resin retch retro retry reuse revel revue rhino rhyme rider ridge rifle right rigid rigor rinse ripen risen riser risky rival river rivet roach roast robin robot rocky rodeo rogue roomy roost rotor rouge rough round rouse route rover rowdy rower royal ruddy rugby ruler rumor rural rusty sadly safer saint salad sally salon salsa salty salve salvo sandy saner sappy sassy satin satyr sauce saucy sauna saute savor savvy savvy scald scale scalp scaly scamp scant scare scarf scary scene scent scion scoff scold scone scoop scope score scorn scour scout scowl scram scrap scree screw scrub scrum scuba sedan seedy segue seize semen sense serum serve setup seven sever sewer shack shade shady shaft shake shaky shale shall shalt shame shank shape shard share shark sharp shave shawl shear sheen sheep sheer sheet sheik shelf shell shied shift shine shiny shire shirk shirt shoal shock shone shook shoot shore shorn short shout shove shown showy shred shrew shrub shrug shuck shunt shush shyly siege sieve sight sigma silky silly since sinew singe singer siren sissy sixth sixty skate skimp skirt skulk skull skunk slack slain slang slant slash slate slave sleek sleep sleet slept slice slick slide slight slime slimy sling slink slint slits slope slosh sloth slump slung slunk slurp slush slyly smack small smart smash smear smell smelt smile smirk smite smith smock smoke smoky smote snack snafu snail snake snaky snare snarl sneak sneer snide sniff snipe snoop snore snort snout snowy snuck snuff soapy sober social soggy solar solid solve sonar sonic sooth sooty sorry sound south space spade spank spare spark spasm spawn speak spear speck speed spell spelt spend spent sperm spice spicy spied spiel spike spiky spill spilt spine spiny spire spite splat split spoil spoke spoof spool spoon spore sport spout spray spree sprig spunk spurn spurt squad squat squib stack staff stage staid stain stair stake stale stalk stall stamp stand stank stare stark start stash state stave stead steak steal steam steed steel steep steer stern stick stiff still stilt sting stink stint stock stoic stoke stole stomp stone stony stood stool stoop store stork storm story stout stove strap straw stray strip strut stuck study stuff stump stung stunk stunt style suave sugar suing suite sulky sully sumac sunny super surer surge surly sushi swami swamp swarm swash swath swear sweat sweep sweet swell swept swift swill swine swing swipe swirl swish swoon swoop sword swore sworn swung synod syrup tabby table taboo tacit tacky taint taken taker talon tamer tango tangy taper tapir tardy tarot taste tasty tatty taunt tawny teach teary tease teddy teeth tempo tenet tenon tenor tense tenth tepee tepid terra terse testy thank theft their theme there these theta thick thief thigh thing think third thong thorn those three threw throb throw thrum thumb thump thyme tiara tibia tidal tiger tight tilde timer timid tipsy titan tithe title toast today toddy token tonal tonga tonic tooth topic torch torso total touch tough towel tower toxic toxin trace track tract trade trail train trait tramp trash trawl tread treat trend triad trial tribe trick tried tripe trite troll troop trope trout truce truck truer truly trump trunk truss trust truth tubal tuber tulip tummy tumor turbo tutor twang tweak tweed tweet twice twine twirl twist tying udder ulcer ultra umber uncle uncut under undid undue unfit unify union unite unity until untie until upper upset urban urine usage usher using usual usurp utile utter vague valet valid valor value valve vapid vapor vault vaunt vegan venom venue verge verse verso verve vicar video vigil vigor villa vinyl viola viper viral virus visit visor vista vital vivid vixen vocal vodka vogue voice voila vomit voter vouch vowel vying wacky wafer wager wagon waist waive waltz warty waste watch water waver waxen weary weave wedge weedy weigh weird welch welsh wench whack whale wharf wheat wheel whelp where which whiff while whine whiny whirl whisk white whole whoop whose widen wider widow width wield wight wimpy wince winch windy wiser wispy witch witty wives woman women woody wooer wooly woozy wordy world worry worse worst worth would wound woven wrack wrath wreak wreck wrest wring wrist write wrong wrote wrung wryly yacht yearn yeast yield young youth zesty zippy`.split(/\s+/);
+const VALID = new Set([...ANSWERS,...EXTRA].filter(w=>/^[a-z]{5}$/.test(w)));
+const WORDS = [...new Set(ANSWERS.filter(w=>/^[a-z]{5}$/.test(w)))];
+const STORAGE='little-wordle-settings-v1';
+let settings={mode:'light',device:'auto',correct:'#8bc6a5',present:'#f2c878',absent:'#aaa6b2'};
+try{settings={...settings,...JSON.parse(localStorage.getItem(STORAGE)||'{}')}}catch(e){}
+let answer='',row=0,col=0,guesses=[],states=[],over=false,used=new Set(),stats={played:0,wins:0};
+try{stats=JSON.parse(localStorage.getItem('little-wordle-stats')||'{"played":0,"wins":0}')}catch(e){}
+const $=id=>document.getElementById(id);
+const screens=['homeScreen','gameScreen','settingsScreen'];
+function saveSettings(){try{localStorage.setItem(STORAGE,JSON.stringify(settings))}catch(e){}}
+function applySettings(){
+ document.body.classList.toggle('dark',settings.mode==='dark');
+ document.body.dataset.device=settings.device;
+ document.documentElement.style.setProperty('--correct',settings.correct);
+ document.documentElement.style.setProperty('--present',settings.present);
+ document.documentElement.style.setProperty('--absent',settings.absent);
+ $('modeSelect').value=settings.mode;$('deviceSelect').value=settings.device;
+ $('correctColor').value=settings.correct;$('presentColor').value=settings.present;$('absentColor').value=settings.absent;
+ $('colorPreview').innerHTML=`<span style="background:${settings.correct}">A</span><span style="background:${settings.present}">B</span><span style="background:${settings.absent}">C</span>`;
+}
+function showScreen(id){screens.forEach(s=>$(s).classList.toggle('active',s===id));}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),1600)}
+function chooseWord(){
+ if(used.size>=WORDS.length)used.clear();
+ const available=WORDS.filter(w=>!used.has(w));
+ const w=available[Math.floor(Math.random()*available.length)];
+ used.add(w);return w;
+}
+function newGame(){
+ answer=chooseWord();row=0;col=0;guesses=Array.from({length:6},()=>[]);states=Array.from({length:6},()=>[]);over=false;
+ $('message').textContent='';renderBoard();renderKeyboard();showScreen('gameScreen');
+}
+function renderBoard(){
+ const board=$('board');board.innerHTML='';
+ for(let r=0;r<6;r++){const line=document.createElement('div');line.className='row-tiles';
+  for(let c=0;c<5;c++){const tile=document.createElement('div');tile.className='tile';tile.id=`tile-${r}-${c}`;tile.textContent=guesses[r][c]||'';if(guesses[r][c])tile.classList.add('filled');if(states[r][c])tile.classList.add(states[r][c]);line.appendChild(tile)}
+  board.appendChild(line);
+ }
+}
+const keyRows=['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
+function renderKeyboard(){
+ const keyboard=$('keyboard');keyboard.innerHTML='';
+ keyRows.forEach((letters,i)=>{const line=document.createElement('div');line.className='key-row';
+  if(i===2)addKey(line,'ENTER','wide',submitGuess);
+  [...letters].forEach(ch=>{const key=document.createElement('button');key.className='key';key.textContent=ch;key.dataset.key=ch;key.addEventListener('click',()=>pressKey(ch));line.appendChild(key)});
+  if(i===2)addKey(line,'⌫','wide',deleteLetter);keyboard.appendChild(line);
+ });
+}
+function addKey(parent,label,cls,fn){const b=document.createElement('button');b.className='key '+cls;b.textContent=label;b.addEventListener('click',fn);parent.appendChild(b)}
+function pressKey(ch){if(over||col>=5)return;guesses[row][col]=ch;col++;const t=$(`tile-${row}-${col-1}`);t.textContent=ch;t.classList.add('filled')}
+function deleteLetter(){if(over||col===0)return;col--;guesses[row][col]='';const t=$(`tile-${row}-${col}`);t.textContent='';t.classList.remove('filled')}
+function evaluate(guess){
+ const result=Array(5).fill('absent'),remaining={};
+ for(let i=0;i<5;i++){if(guess[i]===answer[i])result[i]='correct';else remaining[answer[i]]=(remaining[answer[i]]||0)+1}
+ for(let i=0;i<5;i++){if(result[i]==='correct')continue;if(remaining[guess[i]]>0){result[i]='present';remaining[guess[i]]--}}
+ return result;
+}
+function updateKeys(guess,result){
+ for(let i=0;i<5;i++){const key=document.querySelector(`[data-key="${guess[i]}"]`);if(!key)continue;const next=result[i],rank={absent:1,present:2,correct:3};const current=key.dataset.state||'';if(!current||rank[next]>rank[current]){key.dataset.state=next;key.classList.remove('correct','present','absent');key.classList.add(next)}}
+}
+function submitGuess(){
+ if(over)return;
+ if(col!==5){toast('Enter five letters first');return}
+ const guess=guesses[row].join('').toLowerCase();
+ if(!VALID.has(guess)){toast('Not in the word list');return}
+ const result=evaluate(guess);states[row]=result;
+ for(let i=0;i<5;i++){const tile=$(`tile-${row}-${i}`);setTimeout(()=>{tile.classList.add('flip');tile.classList.add(result[i]);},i*90)}
+ updateKeys(guess,result);
+ if(guess===answer){over=true;stats.played++;stats.wins++;saveStats();setTimeout(()=>showResult(true),800);return}
+ row++;col=0;
+ if(row===6){over=true;stats.played++;saveStats();setTimeout(()=>showResult(false),800)}
+}
+function saveStats(){try{localStorage.setItem('little-wordle-stats',JSON.stringify(stats))}catch(e){}}
+function showResult(won){
+ $('resultTitle').textContent=won?'You got it!':'Good try!';
+ $('resultText').textContent=won?'You found the word. Ready for another round?':'The word this time was:';
+ $('answerText').textContent=answer.toUpperCase();$('resultModal').classList.add('show');
+}
+function closeModal(id){$(id).classList.remove('show')}
+function openSettings(){applySettings();showScreen('settingsScreen')}
+$('playBtn').addEventListener('click',newGame);
+$('homeSettingsBtn').addEventListener('click',openSettings);$('settingsBtn').addEventListener('click',openSettings);$('gameSettingsBtn').addEventListener('click',openSettings);
+$('homeBtn').addEventListener('click',()=>showScreen('homeScreen'));$('backBtn').addEventListener('click',()=>showScreen(answer?'gameScreen':'homeScreen'));
+$('newGameBtn').addEventListener('click',newGame);$('againBtn').addEventListener('click',()=>{closeModal('resultModal');newGame()});
+$('closeResultBtn').addEventListener('click',()=>{closeModal('resultModal');showScreen('homeScreen')});
+$('modeSelect').addEventListener('change',e=>{settings.mode=e.target.value;saveSettings();applySettings()});
+$('deviceSelect').addEventListener('change',e=>{settings.device=e.target.value;saveSettings();applySettings()});
+[['correctColor','correct'],['presentColor','present'],['absentColor','absent']].forEach(([id,key])=>$(id).addEventListener('input',e=>{settings[key]=e.target.value;saveSettings();applySettings()}));
+$('resetStatsBtn').addEventListener('click',()=>{stats={played:0,wins:0};saveStats();toast('Statistics reset')});
+$('helpBtn').addEventListener('click',()=>$('helpModal').classList.add('show'));$('closeHelpBtn').addEventListener('click',()=>closeModal('helpModal'));
+document.addEventListener('keydown',e=>{if(!$('gameScreen').classList.contains('active')||$('resultModal').classList.contains('show')||$('helpModal').classList.contains('show'))return;if(e.key==='Enter')submitGuess();else if(e.key==='Backspace')deleteLetter();else if(/^[a-zA-Z]$/.test(e.key))pressKey(e.key.toUpperCase())});
+applySettings();
+</script>
+</body>
+</html>'''
+path = Path("/mnt/data/index.html")
+path.write_text(html, encoding="utf-8")
+print(f"Created {path} ({path.stat().st_size:,} bytes)")
